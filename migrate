@@ -1,0 +1,23 @@
+#!/bin/bash
+
+set -e
+
+GITOLITE_HOST="$1"
+GITHUB_ORG="$2"
+shift 2
+
+for repo in $(ssh "gitolite@$GITOLITE_HOST" 2> /dev/null | grep '^ R' | grep -v ' R W C ' | awk '{print $NF}' | sort); do
+    echo "Moving $repo from $GITOLITE_HOST to $GITHUB_ORG/$repo"
+
+    git clone "gitolite@$GITOLITE_HOST:$repo" "/tmp/g2g-$repo"
+
+    cd "/tmp/g2g-$repo"
+
+    git remote rename origin gitolite
+
+    hub create "$@" "$GITHUB_ORG/$repo"
+    git remote show origin
+
+    rm -Rf "/tmp/g2g-$repo"
+    exit
+done

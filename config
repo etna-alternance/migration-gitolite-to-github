@@ -1,0 +1,48 @@
+#!/bin/bash
+
+set -e
+
+indent() {
+  c='s/^/       /'
+  case $(uname) in
+    Darwin) sed -l "$c";; # mac/bsd sed: -l buffers on line boundaries
+    *)      sed -u "$c";; # unix/gnu sed: -u unbuffered (arbitrary) chunks of data
+  esac
+}
+status() {
+  echo "-----> $*"
+}
+
+status "Removing old files"
+rm /tmp/repos* /tmp/repo-*
+
+
+status "Getting repository list"
+
+curl -s -H "Authorization: token ${OAUTH_TOKEN}"  https://api.github.com/orgs/etna-alternance/repos?per_page=200 \
+    | jq '[.[] | {name, has_issues, has_wiki, has_download, default_branch, owner: .owner | {login, id}}]' \
+    | jq '.[] | {name, has_wiki: false, has_issues: false, default_branch: "master"}' \
+    > /tmp/repos-patch.json
+
+split -a 3  -l 6 /tmp/repos-patch.json /tmp/repo-
+
+
+for file in /tmp/repo-{aaf,acg}; do
+# for file in /tmp/repo-*; do
+    name=$(cat "$file" | jq .name | tr -d '"')
+
+    status Editing $name
+    echo Setting global parameters | indent
+    curl -s -X PATCH -d @$file -H "Content-Type: application/json"  -H "Authorization: token ${OAUTH_TOKEN}" https://api.github.com/repos/etna-alternance/$name > /dev/null
+
+    echo Deleting existing hooks | indent
+    curl -s -H "Authorization: token ${OAUTH_TOKEN}" https://api.github.com/repos/etna-alternance/$name/hooks \
+        | jq .[].url \
+        | tr -d '"'  \
+        | while read URL; do
+            curl -s -X DELETE -H "Authorization: token ${OAUTH_TOKEN}" $URL
+        done
+
+    # echo "Add 'dev' team" | indent
+    # curl -sv -X PUT -H "Authorization: token ${OAUTH_TOKEN}" https://api.github.com/teams/572022/repos/etna-alternance/$name
+done

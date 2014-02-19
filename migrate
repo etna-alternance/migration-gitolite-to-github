@@ -1,4 +1,6 @@
 #!/bin/bash
+# Usage: ./migrate <GITOLITE_HOST> <$GITHUB_ORG> [hub create parameters...]
+#
 
 set -e
 
@@ -18,6 +20,7 @@ for repo in $(ssh "gitolite@$GITOLITE_HOST" 2> /dev/null | grep '^ R' | grep -v 
     hub create "$@" "$GITHUB_ORG/$repo"
     git remote show origin
 
+    git push -u origin $(for a in $(git branch --list --remote "gitolite/*" | grep -v --regexp='->'); do echo "$a:refs/heads${a//gitolite/}"; done)
+
     rm -Rf "/tmp/g2g-$repo"
-    exit
 done

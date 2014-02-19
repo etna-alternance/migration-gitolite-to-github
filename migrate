@@ -8,19 +8,21 @@ GITOLITE_HOST="$1"
 GITHUB_ORG="$2"
 shift 2
 
-for repo in $(ssh "gitolite@$GITOLITE_HOST" 2> /dev/null | grep '^ R' | grep -v ' R W C ' | awk '{print $NF}' | sort); do
-    echo "Moving $repo from $GITOLITE_HOST to $GITHUB_ORG/$repo"
+for repo in $(ssh "gitolite@$GITOLITE_HOST" 2> /dev/null | grep '^ R' | grep -v ' R W C' | awk '{print $NF}' | sort); do
+    remote_repo=$(echo $repo | sed "s#/#-#")
+    echo "Moving $repo from $GITOLITE_HOST to $GITHUB_ORG/$remote_repo"
 
-    git clone "gitolite@$GITOLITE_HOST:$repo" "/tmp/g2g-$repo"
+    git clone "gitolite@$GITOLITE_HOST:$repo" "/tmp/g2g-$remote_repo"
 
-    cd "/tmp/g2g-$repo"
+    cd "/tmp/g2g-$remote_repo"
 
     git remote rename origin gitolite
 
-    hub create "$@" "$GITHUB_ORG/$repo"
+    hub create "$@" "$GITHUB_ORG/$remote_repo"
     git remote show origin
 
-    git push -u origin $(for a in $(git branch --list --remote "gitolite/*" | grep -v --regexp='->'); do echo "$a:refs/heads${a//gitolite/}"; done)
+    git push -u origin $(for a in $(git branch --list --remote "gitolite/*" | grep -v --regexp='->'); do echo "+$a:refs/heads${a//gitolite/}"; done)
 
     rm -Rf "/tmp/g2g-$repo"
+    cd -
 done
